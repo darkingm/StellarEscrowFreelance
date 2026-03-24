@@ -1,185 +1,188 @@
-# 🔐 Freelance Escrow — Decentralized Milestone-Based Payments
+# 🔐 FreelanceEscrow — Decentralized Freelance Payment Platform
 
-> **Nền tảng Escrow Freelance phi tập trung trên Stellar/Soroban** — Giải phóng thanh toán theo milestone, không phí trung gian cao, không bị ban account, cross-border.
+> Trustless milestone-based escrow payments on **Stellar blockchain (Soroban)**. No middleman, near-zero fees, instant cross-border settlements.
 
-## Vấn Đề
-
-Freelancer quốc tế phải chịu phí trung gian cao (20% trên Fiverr/Upwork), rủi ro bị ban account, và thanh toán cross-border chậm trễ — gây mất niềm tin giữa client và freelancer.
-
-## Giải Pháp
-
-Smart contract escrow trên Stellar tự động giữ tiền trong escrow, giải phóng theo từng milestone khi client approve, và có cơ chế dispute resolution minh bạch on-chain — loại bỏ hoàn toàn middleman.
-
-## Tại Sao Stellar
-
-- **Phí giao dịch ~$0.000003** — gần như miễn phí so với 20% phí Fiverr
-- **Xử lý ~5 giây** — thanh toán tức thì, không đợi 14 ngày
-- **Cross-border native** — freelancer ở bất kỳ quốc gia nào đều nhận được tiền
-- **Soroban smart contract** — logic escrow chạy on-chain, không ai có thể thay đổi
-
-## Người Dùng Mục Tiêu
-
-Freelancer và client quốc tế muốn thanh toán nhanh, rẻ, minh bạch — đặc biệt ở các quốc gia đang phát triển nơi phí chuyển tiền cao.
-
-## Demo Trực Tiếp
-
-- **Mạng**: Stellar Testnet
-- **Contract ID**: `CA7VKPOTYB2QQKMZ3W5L4L236PWGXQDJUE5LFEU225LA5RH2RWHNFREB`
-- **Stellar Expert**: [Xem Contract](https://stellar.expert/explorer/testnet/contract/CA7VKPOTYB2QQKMZ3W5L4L236PWGXQDJUE5LFEU225LA5RH2RWHNFREB)
-- **Stellar Lab**: [Xem trên Lab](https://lab.stellar.org/r/testnet/contract/CA7VKPOTYB2QQKMZ3W5L4L236PWGXQDJUE5LFEU225LA5RH2RWHNFREB)
-
-## Tính Năng Chính
-
-| Tính Năng | Mô Tả |
-|---|---|
-| **Tạo Job** | Client tạo job với nhiều milestones, deposit tiền vào escrow |
-| **Accept Job** | Freelancer chấp nhận job, trạng thái chuyển sang InProgress |
-| **Submit Milestone** | Freelancer nộp milestone đã hoàn thành |
-| **Approve & Release** | Client approve milestone → tiền tự động chuyển cho freelancer |
-| **Dispute** | Client hoặc freelancer có thể raise dispute |
-| **Resolve Dispute** | Admin giải quyết: hoàn tiền client / trả freelancer / chia 50/50 |
-| **Cancel Job** | Client hủy job chưa ai accept → hoàn tiền 100% |
-| **Platform Fee** | 2.5% phí nền tảng, trừ khi approve milestone |
-
-## Kiến Trúc Smart Contract
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                   FreelanceEscrow Contract               │
-├─────────────────────────────────────────────────────────┤
-│                                                          │
-│  Client ──► create_job() ──► Deposit tokens to escrow   │
-│                    │                                     │
-│  Freelancer ──► accept_job() ──► Status: InProgress     │
-│                    │                                     │
-│  Freelancer ──► submit_milestone() ──► Status: Submitted│
-│                    │                                     │
-│  Client ──► approve_milestone() ──► Release funds 💰    │
-│                    │           (minus 2.5% platform fee) │
-│                    │                                     │
-│  Either ──► raise_dispute() ──► Status: Disputed        │
-│                    │                                     │
-│  Admin ──► resolve_dispute() ──► Refund/Pay/Split       │
-│                                                          │
-└─────────────────────────────────────────────────────────┘
-```
-
-## Cách Chạy
-
-### Yêu Cầu
-- Rust (rustc 1.84.0+)
-- Stellar CLI (stellar 25.x+)
-- wasm32-unknown-unknown target
-
-### Build & Test
-
-```bash
-# Clone repo
-git clone https://github.com/AshLien/freelance-escrow-stellar.git
-cd freelance-escrow-stellar
-
-# Build contract
-stellar contract build
-
-# Chạy 10 unit tests
-cargo test -p freelance-escrow
-```
-
-### Deploy lên Testnet
-
-```bash
-# Tạo tài khoản test
-stellar keys generate student --network testnet --fund
-
-# Deploy contract
-stellar contract deploy \
-  --wasm target/wasm32v1-none/release/freelance_escrow.wasm \
-  --source-account student \
-  --network testnet
-
-# Initialize contract (2.5% phí)
-stellar contract invoke \
-  --id YOUR_CONTRACT_ID \
-  --source-account student \
-  --network testnet \
-  -- initialize \
-  --admin $(stellar keys address student) \
-  --platform_fee_bps 250
-```
-
-## Cấu Trúc Dự Án
-
-```
-soroban-hello-world/
-├── contracts/
-│   └── freelance-escrow/
-│       ├── Cargo.toml           # Dependencies (soroban-sdk v25)
-│       └── src/
-│           └── lib.rs           # Smart contract + 10 tests
-├── Cargo.toml                   # Workspace config
-└── README.md                    # File này
-```
-
-## Smart Contract Functions
-
-| Function | Caller | Mô Tả |
-|---|---|---|
-| `initialize(admin, platform_fee_bps)` | Admin | Khởi tạo contract, thiết lập phí |
-| `create_job(client, token, milestones, deadline)` | Client | Tạo job + deposit tiền vào escrow |
-| `accept_job(freelancer, job_id)` | Freelancer | Chấp nhận job |
-| `submit_milestone(freelancer, job_id, milestone_id)` | Freelancer | Nộp milestone |
-| `approve_milestone(client, job_id, milestone_id)` | Client | Approve + release tiền |
-| `raise_dispute(caller, job_id, milestone_id)` | Client/Freelancer | Mở dispute |
-| `resolve_dispute(job_id, milestone_id, resolution)` | Admin | Giải quyết dispute |
-| `cancel_job(client, job_id)` | Client | Hủy job (chỉ khi Open) |
-| `get_job(job_id)` | Anyone | Xem thông tin job |
-| `get_milestone(job_id, milestone_id)` | Anyone | Xem thông tin milestone |
-| `get_platform_fee()` | Anyone | Xem phí hiện tại |
-
-## Bảo Mật
-
-- ✅ Mọi mutating function đều dùng `require_auth()` — chỉ người có quyền mới thay đổi được
-- ✅ Token transfers qua Stellar Asset Contract (SAC) — an toàn, chuẩn Stellar
-- ✅ Phí chỉ trừ khi approve milestone — không trừ khi deposit
-- ✅ Tiền ở trong contract cho đến khi được release — không ai rút trộm được
-- ✅ Chỉ admin giải quyết dispute
-- ✅ Job chỉ cancel được trước khi freelancer accept
-- ✅ 10 unit tests bao phủ happy path, edge cases, auth, và dispute flows
-
-## Tests (10/10 Passed ✅)
-
-```
-test test::test_full_happy_path ... ok
-test test::test_cancel_open_job ... ok
-test test::test_cannot_cancel_in_progress_job ... ok
-test test::test_dispute_resolve_refund_client ... ok
-test test::test_dispute_resolve_pay_freelancer ... ok
-test test::test_dispute_resolve_split ... ok
-test test::test_platform_fee_calculation ... ok
-test test::test_wrong_freelancer_cannot_submit ... ok
-test test::test_double_submit_milestone ... ok
-test test::test_multiple_milestones_sequential ... ok
-
-test result: ok. 10 passed; 0 failed
-```
-
-## Tech Stack
-
-- **Smart Contract**: Rust / Soroban SDK v25
-- **Blockchain**: Stellar Testnet
-- **Token Standard**: Stellar Asset Contract (SAC)
-- **CLI**: Stellar CLI v25.2.0
-- **Wallet**: Freighter Browser Extension
-
-## Nhóm
-
-| Thành Viên | Email | Trường |
-|---|---|---|
-| Trần Nguyên Kiên | kien4941@gmail.com | University of Greenwich |
-| Nguyễn Như Thiện | | University of Greenwich |
-| Lương Văn An | | University of Greenwich |
-| Trần Lê Khoa | | University of Greenwich |
+**Rise In x Stellar University Tour 2026**
 
 ---
 
-*Rise In x Stellar University Tour — Tháng 3 năm 2026*
+## 👥 Team
+
+| Member | Role | Student ID |
+|--------|------|------------|
+| Trần Nguyên Kiên | Smart Contract & Full-Stack Dev | SE173598 |
+| Member 2 | Frontend Dev | — |
+| Member 3 | Backend Dev | — |
+
+---
+
+## 📁 Project Structure
+
+```
+StellarEscrowFreelance/
+├── contracts/                    # Soroban Smart Contracts (Rust)
+│   ├── freelance-escrow/         # Main escrow contract
+│   │   └── src/lib.rs            # 15 functions, 10 unit tests
+│   └── hello-world/              # Example contract
+├── frontend/                     # Next.js 16 (TypeScript)
+│   └── src/
+│       ├── app/                  # 8 pages (App Router)
+│       │   ├── page.tsx          # Landing page
+│       │   ├── dashboard/        # Dashboard
+│       │   ├── jobs/             # Jobs listing + [id] detail
+│       │   ├── create/           # Create job wizard
+│       │   ├── disputes/         # Dispute management
+│       │   ├── profile/          # User profile
+│       │   └── admin/            # Admin panel
+│       └── lib/stellar.ts        # Stellar SDK integration
+├── backend/                      # NestJS v11 (TypeScript)
+│   └── src/
+│       ├── app.module.ts         # Root module
+│       ├── main.ts               # Entry point (port 4000)
+│       ├── stellar/              # Stellar blockchain service
+│       ├── auth/                 # Wallet-based authentication
+│       ├── jobs/                 # Jobs CRUD + search/filter
+│       ├── milestones/           # Milestone submit/approve/reject
+│       ├── disputes/             # Dispute raise/resolve
+│       └── users/                # User profiles
+├── Cargo.toml                    # Rust workspace config
+├── Cargo.lock
+├── .gitignore                    # Excludes: target/, node_modules/, .env, dist/
+└── README.md
+```
+
+---
+
+## 🔗 Deployed Contract
+
+| Item | Value |
+|------|-------|
+| **Network** | Stellar Testnet |
+| **Contract ID** | `CA7VKPOTYB2QQKMZ3W5L4L236PWGXQDJUE5LFEU225LA5RH2RWHNFREB` |
+| **Explorer** | [stellar.expert](https://stellar.expert/explorer/testnet/contract/CA7VKPOTYB2QQKMZ3W5L4L236PWGXQDJUE5LFEU225LA5RH2RWHNFREB) |
+| **Platform Fee** | 2.5% (250 bps) |
+
+---
+
+## ⚙️ Smart Contract Functions (15 total)
+
+### Core Lifecycle
+| Function | Description |
+|----------|-------------|
+| `initialize` | Set admin + platform fee |
+| `create_job` | Client creates job with milestones, deposits funds |
+| `accept_job` | Freelancer accepts job → status = InProgress |
+| `submit_milestone` | Freelancer submits completed work |
+| `approve_milestone` | Client approves → funds released (minus fee) |
+| `reject_milestone` | Client rejects → milestone back to Pending |
+| `cancel_job` | Client cancels open job → refund |
+
+### Dispute Resolution
+| Function | Description |
+|----------|-------------|
+| `raise_dispute` | Either party raises dispute on a milestone |
+| `resolve_dispute` | Admin resolves: `RefundClient`, `PayFreelancer`, or `Split` |
+
+### Admin
+| Function | Description |
+|----------|-------------|
+| `update_platform_fee` | Admin changes fee (max 10%) |
+| `transfer_admin` | Admin transfers role to new address |
+
+### Query
+| Function | Description |
+|----------|-------------|
+| `get_job` | Get job details by ID |
+| `get_milestone` | Get milestone details |
+| `get_job_count` | Total jobs created |
+| `get_admin` | Get admin address |
+| `get_all_milestones` | Get all milestones for a job |
+
+---
+
+## 🧪 Test Results
+
+```
+running 10 tests
+test test::test_initialize ... ok
+test test::test_create_job ... ok
+test test::test_accept_job ... ok
+test test::test_submit_milestone ... ok
+test test::test_approve_milestone_with_fee ... ok
+test test::test_full_job_lifecycle ... ok
+test test::test_cancel_job_refund ... ok
+test test::test_raise_dispute ... ok
+test test::test_resolve_dispute_split ... ok
+test test::test_wrong_freelancer_cannot_submit ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored
+```
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+- [Rust](https://rustup.rs/) + `wasm32v1-none` target
+- [Stellar CLI](https://soroban.stellar.org/docs/getting-started/setup)
+- [Node.js 18+](https://nodejs.org/)
+
+### Smart Contract
+```bash
+# Build
+stellar contract build
+
+# Test
+cargo test -p freelance-escrow
+
+# Deploy to testnet
+stellar contract deploy \
+  --wasm target/wasm32v1-none/release/freelance_escrow.wasm \
+  --source-account <YOUR_KEY> --network testnet
+```
+
+### Frontend (port 3000)
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+### Backend API (port 4000)
+```bash
+cd backend
+npm install
+npm run start:dev
+```
+
+**API Endpoints:**
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/stellar/contract` | Contract info |
+| GET | `/api/stellar/stats` | Platform stats |
+| POST | `/api/auth/challenge` | Request auth challenge |
+| POST | `/api/auth/verify` | Verify wallet signature |
+| GET | `/api/jobs` | List jobs (filter: `?status=Open&search=...`) |
+| POST | `/api/jobs` | Create job |
+| GET | `/api/jobs/:id` | Job detail |
+| PATCH | `/api/jobs/:id/accept` | Accept job |
+| GET | `/api/milestones/job/:id` | Get milestones for job |
+| GET | `/api/disputes` | List disputes |
+| POST | `/api/disputes` | Raise dispute |
+| GET | `/api/users/:address` | User profile |
+
+---
+
+## 🔒 Security
+
+- `require_auth()` on all state-mutating contract functions
+- Wallet-based authentication (no passwords)
+- `.gitignore` excludes: `.env`, `*.key`, `*.secret`, `*.pem`, `node_modules/`, `target/`, `dist/`
+- Platform fee capped at 10% max on-chain
+- Admin role transfer requires current admin signature
+
+---
+
+## 📄 License
+
+MIT License — Rise In x Stellar University Tour 2026
